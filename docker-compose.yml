@@ -1,0 +1,61 @@
+name: matrix
+services:
+  db:
+    image: postgres:latest
+    container_name: matrix-db
+    hostname: matrix-db
+    restart: always
+    volumes:
+      - /var/lib/srv/${USER}/docker/matrixdotorg/synapse/latest/rootfs/data/db/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=synapse
+      - POSTGRES_USER=synapse
+      - POSTGRES_PASSWORD=STRONGPASSWORD
+      - POSTGRES_HOST_AUTH_METHOD=trust
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U synapse']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - matrix
+
+  server:
+    image: docker.io/matrixdotorg/synapse:latest
+    container_name: matrix-server
+    restart: always
+    environment:
+      - SYNAPSE_SERVER_NAME=matrix.casjay.social
+      - SYNAPSE_REPORT_STATS=yes
+      - SYNAPSE_CONFIG_PATH=/data/homeserver.yaml
+    volumes:
+      - /etc/synapse/homeserver.yaml:/data/homeserver.yaml
+      - /var/lib/srv/${USER}/docker/matrixdotorg/synapse/latest/rootfs/config/synapse:/data
+    ports:
+      - 8008:8008/tcp
+      - 8448:8448/tcp
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - matrix
+
+  web:
+    image: vectorim/element-web:latest
+    container_name: matrix-web
+    restart: always
+    ports:
+      - 172.17.0.1:59076:80
+    volumes:
+      - /etc/element/config.json:/app/config.json
+    depends_on:
+      server:
+        condition: service_started
+    networks:
+      - matrix
+
+networks:
+  matrix:
+    name: matrix
+    external: false
