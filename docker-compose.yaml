@@ -1,0 +1,82 @@
+# nginx proxy address - http://172.17.0.1:59076
+
+name: matrix
+x-logging: &default-logging
+  options:
+    max-size: '5m'
+    max-file: '1'
+  driver: json-file
+
+services:
+  web:
+    image: vectorim/element-web:latest
+    container_name: matrix-web
+    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+    ports:
+      - 172.17.0.1:59076:80
+    volumes:
+      - '/etc/element/config.json:/app/config.json'
+    depends_on:
+      db:
+        condition: service_healthy
+      server:
+        condition: service_started
+    networks:
+      - matrix
+
+  server:
+    image: docker.io/matrixdotorg/synapse:latest
+    container_name: matrix-server
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      SYNAPSE_REPORT_STATS: yes
+      SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
+      SYNAPSE_SERVER_NAME: ${BASE_HOST_NAME:-matrix.casjay.social}
+    ports:
+      - 8008:8008/tcp
+      - 8448:8448/tcp
+    volumes:
+      - './rootfs/config/synapse:/data'
+      - '/etc/synapse/homeserver.yaml:/data/homeserver.yaml'
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - matrix
+
+  db:
+    image: postgres:latest
+    container_name: matrix-db
+    hostname: matrix-db
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-synapse}
+      POSTGRES_USER: ${DB_USER_NAME:-synapse}
+      POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_INITDB_ARGS: --encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - './rootfs/db/postgres/matrix:/var/lib/postgresql/data'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U synapse']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - matrix
+
+networks:
+  matrix:
+    name: matrix
+    external: false
