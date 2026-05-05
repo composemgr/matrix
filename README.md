@@ -51,8 +51,8 @@ See `docker-compose.yaml` for complete list of configurable options.
 
 ## 📂 Volumes
 
-- `./rootfs/config/synapse` - Data storage
-- `./rootfs/data/db/postgres/matrix` - Data storage
+- `./volumes/config/synapse` - Data storage
+- `./volumes/data/db/postgres/matrix` - Data storage
 
 ## 🔐 Security
 
