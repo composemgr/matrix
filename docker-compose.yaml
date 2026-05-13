@@ -17,6 +17,8 @@ services:
     logging: *default-logging
     environment:
       TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: matrix-web
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
     ports:
       - 172.17.0.1:59076:80
     volumes:
@@ -28,6 +30,24 @@ services:
         condition: service_started
     networks:
       - matrix
+      - proxy
+      - cloudflare
+    labels:
+      - 'traefik.enable=true'
+      - 'cloudflare.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'cloudflare.service=http://matrix-web:80'
+      - 'cloudflare.hostname=matrix.${CLOUDFLARE_ZONE_NAME:-}'
+      - 'traefik.http.routers.matrix-web.entrypoints=http'
+      - 'traefik.http.routers.matrix-web-secure.tls=true'
+      - 'traefik.http.routers.matrix-web.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.middlewares.matrix-web-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.matrix-web.middlewares=matrix-web-https-redirect'
+      - 'traefik.http.routers.matrix-web-secure.entrypoints=https'
+      - 'traefik.http.routers.matrix-web-secure.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.routers.matrix-web-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.matrix-web-secure.service=matrix-web'
+      - 'traefik.http.services.matrix-web.loadbalancer.server.port=80'
 
   server:
     image: docker.io/matrixdotorg/synapse:latest
@@ -37,6 +57,8 @@ services:
     logging: *default-logging
     environment:
       TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: matrix-server
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
       SYNAPSE_REPORT_STATS: ${SYNAPSE_REPORT_STATS:-no}
       SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
       SYNAPSE_SERVER_NAME: ${BASE_HOST_NAME:-$HOSTNAME}
@@ -51,6 +73,24 @@ services:
         condition: service_healthy
     networks:
       - matrix
+      - proxy
+      - cloudflare
+    labels:
+      - 'traefik.enable=true'
+      - 'cloudflare.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'cloudflare.service=http://matrix-server:8008'
+      - 'cloudflare.hostname=matrix.${CLOUDFLARE_ZONE_NAME:-}'
+      - 'traefik.http.routers.matrix-server.entrypoints=http'
+      - 'traefik.http.routers.matrix-server-secure.tls=true'
+      - 'traefik.http.routers.matrix-server.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.middlewares.matrix-server-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.matrix-server.middlewares=matrix-server-https-redirect'
+      - 'traefik.http.routers.matrix-server-secure.entrypoints=https'
+      - 'traefik.http.routers.matrix-server-secure.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.routers.matrix-server-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.matrix-server-secure.service=matrix-server'
+      - 'traefik.http.services.matrix-server.loadbalancer.server.port=8008'
 
   db:
     image: postgres:latest
@@ -61,6 +101,7 @@ services:
     logging: *default-logging
     environment:
       TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: matrix-db
       POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-synapse}
       POSTGRES_USER: ${DB_USER_NAME:-synapse}
       POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
@@ -80,3 +121,7 @@ networks:
   matrix:
     name: matrix
     external: false
+  proxy:
+    external: true
+  cloudflare:
+    external: true
