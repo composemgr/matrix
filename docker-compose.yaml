@@ -20,7 +20,7 @@ services:
     ports:
       - 172.17.0.1:59076:80
     volumes:
-      - '/etc/element/config.json:/app/config.json'
+      - './volumes/config/element/config.json:/app/config.json:ro'
     depends_on:
       db:
         condition: service_healthy
@@ -37,15 +37,15 @@ services:
     logging: *default-logging
     environment:
       TZ: ${TZ:-America/New_York}
-      SYNAPSE_REPORT_STATS: yes
+      SYNAPSE_REPORT_STATS: ${SYNAPSE_REPORT_STATS:-no}
       SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
-      SYNAPSE_SERVER_NAME: ${BASE_HOST_NAME:-matrix.casjay.social}
+      SYNAPSE_SERVER_NAME: ${BASE_HOST_NAME:-$HOSTNAME}
+      SYNAPSE_LOG_LEVEL: ${SYNAPSE_LOG_LEVEL:-WARNING}
     ports:
-      - 8008:8008/tcp
-      - 8448:8448/tcp
+      - 172.17.0.1:8008:8008
+      - 8448:8448
     volumes:
       - './volumes/config/synapse:/data'
-      - '/etc/synapse/homeserver.yaml:/data/homeserver.yaml'
     depends_on:
       db:
         condition: service_healthy
@@ -69,7 +69,7 @@ services:
     volumes:
       - './volumes/data/db/postgres/matrix:/var/lib/postgresql/data'
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U synapse']
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 5s
       timeout: 5s
       retries: 5
